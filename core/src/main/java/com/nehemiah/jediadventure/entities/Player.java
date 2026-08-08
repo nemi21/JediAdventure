@@ -26,6 +26,10 @@ public class Player {
     private static final float ATTACK_RANGE = 54f;
     private static final float ATTACK_HEIGHT = 30f;
 
+    private static final int MAX_HEALTH = 5;
+    private static final float INVULNERABILITY_DURATION = 1f;
+    private static final float DAMAGE_KNOCKBACK = 60f;
+
     private final Rectangle bounds;
     private final Rectangle attackBounds;
 
@@ -34,7 +38,9 @@ public class Player {
     private float jumpBufferTimer;
     private float attackTimer;
     private float attackCooldownTimer;
+    private float invulnerabilityTimer;
 
+    private int health;
     private boolean onGround;
     private boolean facingRight;
 
@@ -42,20 +48,19 @@ public class Player {
         bounds = new Rectangle(startingX, startingY, WIDTH, HEIGHT);
         attackBounds = new Rectangle();
 
-        velocityY = 0f;
-        onGround = true;
+        health = MAX_HEALTH;
         facingRight = true;
 
-        coyoteTimer = COYOTE_DURATION;
-        jumpBufferTimer = 0f;
-        attackTimer = 0f;
-        attackCooldownTimer = 0f;
+        resetMovement();
     }
 
     public void update(
             float deltaTime,
             float worldWidth,
             List<Rectangle> platforms) {
+
+        invulnerabilityTimer =
+                Math.max(0f, invulnerabilityTimer - deltaTime);
 
         float moveX = readHorizontalMovement();
 
@@ -138,7 +143,6 @@ public class Player {
         if (jumpBufferTimer > 0f && coyoteTimer > 0f) {
             velocityY = JUMP_SPEED;
             onGround = false;
-
             jumpBufferTimer = 0f;
             coyoteTimer = 0f;
         }
@@ -160,7 +164,6 @@ public class Player {
         velocityY = Math.max(velocityY, MAX_FALL_SPEED);
 
         bounds.y += velocityY * deltaTime;
-
         onGround = false;
     }
 
@@ -178,13 +181,9 @@ public class Player {
             attackCooldownTimer = ATTACK_COOLDOWN;
         }
 
-        float attackX;
-
-        if (facingRight) {
-            attackX = bounds.x + bounds.width;
-        } else {
-            attackX = bounds.x - ATTACK_RANGE;
-        }
+        float attackX = facingRight
+                ? bounds.x + bounds.width
+                : bounds.x - ATTACK_RANGE;
 
         attackBounds.set(
                 attackX,
@@ -192,6 +191,56 @@ public class Player {
                 ATTACK_RANGE,
                 ATTACK_HEIGHT
         );
+    }
+
+    public void takeDamage(
+            int damage,
+            float damageSourceCenterX,
+            float worldWidth) {
+
+        if (invulnerabilityTimer > 0f || !isAlive()) {
+            return;
+        }
+
+        health -= damage;
+        invulnerabilityTimer = INVULNERABILITY_DURATION;
+
+        float playerCenterX = bounds.x + bounds.width / 2f;
+
+        if (damageSourceCenterX < playerCenterX) {
+            bounds.x += DAMAGE_KNOCKBACK;
+        } else {
+            bounds.x -= DAMAGE_KNOCKBACK;
+        }
+
+        bounds.x = MathUtils.clamp(
+                bounds.x,
+                0f,
+                worldWidth - bounds.width
+        );
+
+        velocityY = 350f;
+        onGround = false;
+    }
+
+    public void respawn(float respawnX, float respawnY) {
+        bounds.setPosition(respawnX, respawnY);
+        health = MAX_HEALTH;
+
+        resetMovement();
+
+        // Prevent immediate damage after respawning.
+        invulnerabilityTimer = INVULNERABILITY_DURATION;
+    }
+
+    private void resetMovement() {
+        velocityY = 0f;
+        coyoteTimer = COYOTE_DURATION;
+        jumpBufferTimer = 0f;
+        attackTimer = 0f;
+        attackCooldownTimer = 0f;
+        invulnerabilityTimer = 0f;
+        onGround = true;
     }
 
     private void resolveHorizontalCollisions(
@@ -229,8 +278,16 @@ public class Player {
     }
 
     public void render(ShapeRenderer shapeRenderer) {
-        // Temporary black outfit.
-        shapeRenderer.setColor(0.04f, 0.04f, 0.06f, 1f);
+        boolean damageFlash =
+                invulnerabilityTimer > 0f
+                && ((int) (invulnerabilityTimer * 16f)) % 2 == 0;
+
+        if (damageFlash) {
+            shapeRenderer.setColor(0.70f, 0.12f, 0.12f, 1f);
+        } else {
+            shapeRenderer.setColor(0.04f, 0.04f, 0.06f, 1f);
+        }
+
         shapeRenderer.rect(
                 bounds.x,
                 bounds.y,
@@ -238,7 +295,6 @@ public class Player {
                 bounds.height - 12f
         );
 
-        // Temporary head.
         shapeRenderer.setColor(0.82f, 0.64f, 0.48f, 1f);
         shapeRenderer.circle(
                 bounds.x + bounds.width / 2f,
@@ -246,7 +302,6 @@ public class Player {
                 10f
         );
 
-        // Temporary hair.
         shapeRenderer.setColor(0.30f, 0.20f, 0.10f, 1f);
         shapeRenderer.rect(
                 bounds.x + 6f,
@@ -255,7 +310,6 @@ public class Player {
                 5f
         );
 
-        // Belt.
         shapeRenderer.setColor(0.35f, 0.35f, 0.38f, 1f);
         shapeRenderer.rect(
                 bounds.x,
@@ -272,7 +326,6 @@ public class Player {
     private void drawLightsaber(ShapeRenderer shapeRenderer) {
         float bladeY = attackBounds.y + attackBounds.height / 2f;
 
-        // Hilt.
         shapeRenderer.setColor(0.65f, 0.68f, 0.72f, 1f);
 
         float hiltX = facingRight
@@ -281,7 +334,6 @@ public class Player {
 
         shapeRenderer.rect(hiltX, bladeY - 4f, 10f, 8f);
 
-        // Green blade.
         shapeRenderer.setColor(0.20f, 1f, 0.35f, 1f);
         shapeRenderer.rect(
                 attackBounds.x,
@@ -299,12 +351,16 @@ public class Player {
         return isAttacking() ? attackBounds : null;
     }
 
-    public boolean isOnGround() {
-        return onGround;
+    public int getHealth() {
+        return health;
     }
 
-    public boolean isFacingRight() {
-        return facingRight;
+    public int getMaximumHealth() {
+        return MAX_HEALTH;
+    }
+
+    public boolean isAlive() {
+        return health > 0;
     }
 
     public boolean isAttacking() {

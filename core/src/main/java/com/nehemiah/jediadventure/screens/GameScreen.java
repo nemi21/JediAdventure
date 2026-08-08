@@ -20,6 +20,9 @@ public class GameScreen implements Screen {
     public static final float VIEW_HEIGHT = 720f;
     public static final float LEVEL_WIDTH = 3200f;
 
+    private static final float PLAYER_RESPAWN_X = 100f;
+    private static final float PLAYER_RESPAWN_Y = 64f;
+
     private final OrthographicCamera camera;
     private final FitViewport viewport;
     private final ShapeRenderer shapeRenderer;
@@ -49,8 +52,17 @@ public class GameScreen implements Screen {
         platforms.add(new Rectangle(2300f, 250f, 220f, 32f));
         platforms.add(new Rectangle(2600f, 140f, 220f, 32f));
 
-        player = new Player(100f, 64f);
-        trainingDroid = new TrainingDroid(760f, 64f);
+        player = new Player(
+                PLAYER_RESPAWN_X,
+                PLAYER_RESPAWN_Y
+        );
+
+        trainingDroid = new TrainingDroid(
+                760f,
+                64f,
+                700f,
+                1050f
+        );
 
         exitDoor = new Rectangle(3100f, 64f, 48f, 100f);
     }
@@ -72,6 +84,14 @@ public class GameScreen implements Screen {
         trainingDroid.update(physicsDelta);
 
         checkPlayerAttack();
+        checkDroidContact();
+
+        if (!player.isAlive()) {
+            player.respawn(
+                    PLAYER_RESPAWN_X,
+                    PLAYER_RESPAWN_Y
+            );
+        }
 
         ScreenUtils.clear(0.02f, 0.03f, 0.08f, 1f);
 
@@ -82,6 +102,7 @@ public class GameScreen implements Screen {
 
         drawBackgroundGrid();
         drawLevel();
+        drawHealthDisplay();
     }
 
     private void checkPlayerAttack() {
@@ -93,6 +114,25 @@ public class GameScreen implements Screen {
 
         if (attackBounds.overlaps(trainingDroid.getBounds())) {
             trainingDroid.takeDamage(1);
+        }
+    }
+
+    private void checkDroidContact() {
+        if (!trainingDroid.isAlive()) {
+            return;
+        }
+
+        Rectangle droidBounds = trainingDroid.getBounds();
+
+        if (player.getBounds().overlaps(droidBounds)) {
+            float droidCenterX =
+                    droidBounds.x + droidBounds.width / 2f;
+
+            player.takeDamage(
+                    1,
+                    droidCenterX,
+                    LEVEL_WIDTH
+            );
         }
     }
 
@@ -153,6 +193,39 @@ public class GameScreen implements Screen {
 
         trainingDroid.render(shapeRenderer);
         player.render(shapeRenderer);
+
+        shapeRenderer.end();
+    }
+
+    private void drawHealthDisplay() {
+        float displayX =
+                camera.position.x - VIEW_WIDTH / 2f + 30f;
+
+        float displayY = VIEW_HEIGHT - 45f;
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        shapeRenderer.setColor(0.18f, 0.18f, 0.20f, 1f);
+
+        for (int i = 0; i < player.getMaximumHealth(); i++) {
+            shapeRenderer.rect(
+                    displayX + i * 35f,
+                    displayY,
+                    28f,
+                    18f
+            );
+        }
+
+        shapeRenderer.setColor(0.85f, 0.12f, 0.12f, 1f);
+
+        for (int i = 0; i < player.getHealth(); i++) {
+            shapeRenderer.rect(
+                    displayX + i * 35f,
+                    displayY,
+                    28f,
+                    18f
+            );
+        }
 
         shapeRenderer.end();
     }
