@@ -6,6 +6,7 @@ import java.util.List;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -26,6 +27,7 @@ public class GameScreen implements Screen {
     private final OrthographicCamera camera;
     private final FitViewport viewport;
     private final ShapeRenderer shapeRenderer;
+    private final SpriteBatch spriteBatch;
 
     private final Player player;
     private final TrainingDroid trainingDroid;
@@ -36,7 +38,9 @@ public class GameScreen implements Screen {
     public GameScreen() {
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
+
         shapeRenderer = new ShapeRenderer();
+        spriteBatch = new SpriteBatch();
 
         platforms = new ArrayList<>();
 
@@ -64,7 +68,12 @@ public class GameScreen implements Screen {
                 1050f
         );
 
-        exitDoor = new Rectangle(3100f, 64f, 48f, 100f);
+        exitDoor = new Rectangle(
+                3100f,
+                64f,
+                48f,
+                100f
+        );
     }
 
     @Override
@@ -80,7 +89,12 @@ public class GameScreen implements Screen {
     public void render(float deltaTime) {
         float physicsDelta = Math.min(deltaTime, 1f / 30f);
 
-        player.update(physicsDelta, LEVEL_WIDTH, platforms);
+        player.update(
+                physicsDelta,
+                LEVEL_WIDTH,
+                platforms
+        );
+
         trainingDroid.update(physicsDelta);
 
         checkPlayerAttack();
@@ -99,9 +113,12 @@ public class GameScreen implements Screen {
         updateCamera();
 
         shapeRenderer.setProjectionMatrix(camera.combined);
+        spriteBatch.setProjectionMatrix(camera.combined);
 
         drawBackgroundGrid();
         drawLevel();
+        drawPlayer();
+        drawPlayerAttack();
         drawHealthDisplay();
     }
 
@@ -192,8 +209,23 @@ public class GameScreen implements Screen {
         );
 
         trainingDroid.render(shapeRenderer);
-        player.render(shapeRenderer);
 
+        shapeRenderer.end();
+    }
+
+    private void drawPlayer() {
+        spriteBatch.begin();
+        player.render(spriteBatch);
+        spriteBatch.end();
+    }
+
+    private void drawPlayerAttack() {
+        if (!player.isAttacking()) {
+            return;
+        }
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        player.renderAttack(shapeRenderer);
         shapeRenderer.end();
     }
 
@@ -249,6 +281,8 @@ public class GameScreen implements Screen {
 
     @Override
     public void dispose() {
+        player.dispose();
+        spriteBatch.dispose();
         shapeRenderer.dispose();
     }
 }

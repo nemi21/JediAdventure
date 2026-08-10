@@ -4,6 +4,11 @@ import java.util.List;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -12,6 +17,16 @@ public class Player {
 
     private static final float WIDTH = 32f;
     private static final float HEIGHT = 56f;
+
+    private static final float DRAW_WIDTH = 82f;
+    private static final float DRAW_HEIGHT = 96f;
+    private static final float DRAW_Y_OFFSET = -3f;
+
+    private static final int SPRITE_FRAME_WIDTH = 544;
+    private static final int SPRITE_FRAME_HEIGHT = 640;
+
+    private static final float IDLE_FRAME_DURATION = 0.18f;
+    private static final float RUN_FRAME_DURATION = 0.09f;
 
     private static final float RUN_SPEED = 300f;
     private static final float JUMP_SPEED = 700f;
@@ -33,20 +48,76 @@ public class Player {
     private final Rectangle bounds;
     private final Rectangle attackBounds;
 
+    private final Texture idleTexture;
+    private final Texture runTexture;
+
+    private final Animation<TextureRegion> idleAnimation;
+    private final Animation<TextureRegion> runAnimation;
+
     private float velocityY;
     private float coyoteTimer;
     private float jumpBufferTimer;
     private float attackTimer;
     private float attackCooldownTimer;
     private float invulnerabilityTimer;
+    private float animationTime;
 
     private int health;
+
     private boolean onGround;
     private boolean facingRight;
+    private boolean movingHorizontally;
 
     public Player(float startingX, float startingY) {
         bounds = new Rectangle(startingX, startingY, WIDTH, HEIGHT);
         attackBounds = new Rectangle();
+
+        idleTexture = new Texture(
+                Gdx.files.internal(
+                        "characters/luke/luke_idle_4frame.png"
+                )
+        );
+
+        runTexture = new Texture(
+                Gdx.files.internal(
+                        "characters/luke/luke_run_6frame.png"
+                )
+        );
+
+        idleTexture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+        );
+
+        runTexture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+        );
+
+        TextureRegion[][] idleFrames = TextureRegion.split(
+                idleTexture,
+                SPRITE_FRAME_WIDTH,
+                SPRITE_FRAME_HEIGHT
+        );
+
+        TextureRegion[][] runFrames = TextureRegion.split(
+                runTexture,
+                SPRITE_FRAME_WIDTH,
+                SPRITE_FRAME_HEIGHT
+        );
+
+        idleAnimation = new Animation<>(
+                IDLE_FRAME_DURATION,
+                idleFrames[0]
+        );
+
+        runAnimation = new Animation<>(
+                RUN_FRAME_DURATION,
+                runFrames[0]
+        );
+
+        idleAnimation.setPlayMode(Animation.PlayMode.LOOP);
+        runAnimation.setPlayMode(Animation.PlayMode.LOOP);
 
         health = MAX_HEALTH;
         facingRight = true;
@@ -70,12 +141,19 @@ public class Player {
             facingRight = false;
         }
 
+        float previousX = bounds.x;
+
         updateHorizontalMovement(
                 moveX,
                 deltaTime,
                 worldWidth,
                 platforms
         );
+
+        boolean currentlyMoving =
+                Math.abs(bounds.x - previousX) > 0.01f;
+
+        updateAnimation(deltaTime, currentlyMoving);
 
         updateJumpTimers(deltaTime);
         checkForJump();
@@ -84,6 +162,19 @@ public class Player {
         resolveVerticalCollisions(platforms);
 
         updateAttack(deltaTime);
+    }
+
+    private void updateAnimation(
+            float deltaTime,
+            boolean currentlyMoving) {
+
+        if (movingHorizontally != currentlyMoving) {
+            animationTime = 0f;
+        } else {
+            animationTime += deltaTime;
+        }
+
+        movingHorizontally = currentlyMoving;
     }
 
     private float readHorizontalMovement() {
@@ -229,7 +320,6 @@ public class Player {
 
         resetMovement();
 
-        // Prevent immediate damage after respawning.
         invulnerabilityTimer = INVULNERABILITY_DURATION;
     }
 
@@ -240,6 +330,9 @@ public class Player {
         attackTimer = 0f;
         attackCooldownTimer = 0f;
         invulnerabilityTimer = 0f;
+        animationTime = 0f;
+
+        movingHorizontally = false;
         onGround = true;
     }
 
@@ -277,62 +370,78 @@ public class Player {
         }
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
+    public void render(SpriteBatch spriteBatch) {
+        TextureRegion currentFrame;
+
+        if (!onGround) {
+            // Temporary airborne pose until we add a jump sheet.
+            currentFrame = runAnimation.getKeyFrames()[0];
+        } else if (movingHorizontally) {
+            currentFrame = runAnimation.getKeyFrame(
+                    animationTime,
+                    true
+            );
+        } else {
+            currentFrame = idleAnimation.getKeyFrame(
+                    animationTime,
+                    true
+            );
+        }
+
         boolean damageFlash =
                 invulnerabilityTimer > 0f
                 && ((int) (invulnerabilityTimer * 16f)) % 2 == 0;
 
         if (damageFlash) {
-            shapeRenderer.setColor(0.70f, 0.12f, 0.12f, 1f);
+            spriteBatch.setColor(1f, 0.35f, 0.35f, 1f);
         } else {
-            shapeRenderer.setColor(0.04f, 0.04f, 0.06f, 1f);
+            spriteBatch.setColor(Color.WHITE);
         }
 
-        shapeRenderer.rect(
-                bounds.x,
-                bounds.y,
-                bounds.width,
-                bounds.height - 12f
+        float drawX =
+                bounds.x + bounds.width / 2f - DRAW_WIDTH / 2f;
+
+        float drawY = bounds.y + DRAW_Y_OFFSET;
+
+        float horizontalScale = facingRight ? 1f : -1f;
+
+        spriteBatch.draw(
+                currentFrame,
+                drawX,
+                drawY,
+                DRAW_WIDTH / 2f,
+                0f,
+                DRAW_WIDTH,
+                DRAW_HEIGHT,
+                horizontalScale,
+                1f,
+                0f
         );
 
-        shapeRenderer.setColor(0.82f, 0.64f, 0.48f, 1f);
-        shapeRenderer.circle(
-                bounds.x + bounds.width / 2f,
-                bounds.y + bounds.height - 10f,
-                10f
-        );
+        spriteBatch.setColor(Color.WHITE);
+    }
 
-        shapeRenderer.setColor(0.30f, 0.20f, 0.10f, 1f);
-        shapeRenderer.rect(
-                bounds.x + 6f,
-                bounds.y + bounds.height - 6f,
-                20f,
-                5f
-        );
-
-        shapeRenderer.setColor(0.35f, 0.35f, 0.38f, 1f);
-        shapeRenderer.rect(
-                bounds.x,
-                bounds.y + 20f,
-                bounds.width,
-                5f
-        );
-
+    public void renderAttack(ShapeRenderer shapeRenderer) {
         if (isAttacking()) {
             drawLightsaber(shapeRenderer);
         }
     }
 
     private void drawLightsaber(ShapeRenderer shapeRenderer) {
-        float bladeY = attackBounds.y + attackBounds.height / 2f;
-
-        shapeRenderer.setColor(0.65f, 0.68f, 0.72f, 1f);
+        float bladeY =
+                attackBounds.y + attackBounds.height / 2f;
 
         float hiltX = facingRight
                 ? bounds.x + bounds.width - 2f
                 : bounds.x - 8f;
 
-        shapeRenderer.rect(hiltX, bladeY - 4f, 10f, 8f);
+        shapeRenderer.setColor(0.65f, 0.68f, 0.72f, 1f);
+        shapeRenderer.rect(
+                hiltX,
+                bladeY - 4f,
+                10f,
+                8f
+        );
 
         shapeRenderer.setColor(0.20f, 1f, 0.35f, 1f);
         shapeRenderer.rect(
@@ -365,5 +474,10 @@ public class Player {
 
     public boolean isAttacking() {
         return attackTimer > 0f;
+    }
+
+    public void dispose() {
+        idleTexture.dispose();
+        runTexture.dispose();
     }
 }
