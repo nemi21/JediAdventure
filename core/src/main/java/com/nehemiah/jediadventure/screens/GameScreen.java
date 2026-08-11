@@ -19,6 +19,7 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.nehemiah.jediadventure.entities.Player;
 import com.nehemiah.jediadventure.entities.TrainingDroid;
 import com.nehemiah.jediadventure.JediAdventure;
+import com.nehemiah.jediadventure.ui.DialogueBox;
 
 public class GameScreen implements Screen {
 
@@ -55,6 +56,11 @@ public class GameScreen implements Screen {
 
     private final List<Rectangle> platforms;
     private final Rectangle exitDoor;
+    private final Rectangle trainingTerminal;
+    private final Rectangle terminalInteractionArea;
+    private final DialogueBox dialogueBox;
+
+    private int trainingChoice;
     
     private final JediAdventure game;
 
@@ -111,6 +117,23 @@ public class GameScreen implements Screen {
                 48f,
                 100f
         );
+        
+        trainingTerminal = new Rectangle(
+                1220f,
+                64f,
+                48f,
+                72f
+        );
+
+        terminalInteractionArea = new Rectangle(
+                trainingTerminal.x - 65f,
+                trainingTerminal.y - 10f,
+                trainingTerminal.width + 130f,
+                trainingTerminal.height + 20f
+        );
+
+        dialogueBox = new DialogueBox();
+        trainingChoice = -1;
 
         levelComplete = false;
     }
@@ -126,14 +149,24 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float deltaTime) {
-        if (handlePauseInput()) {
+        boolean dialogueWasOpen =
+                dialogueBox.isOpen();
+
+        if (dialogueWasOpen) {
+            int selectedChoice =
+                    dialogueBox.updateInput();
+
+            if (selectedChoice >= 0) {
+                trainingChoice = selectedChoice;
+            }
+        } else if (handlePauseInput()) {
             return;
         }
 
         float physicsDelta =
                 Math.min(deltaTime, 1f / 30f);
 
-        if (!paused) {
+        if (!paused && !dialogueBox.isOpen()) {
             if (levelComplete) {
                 checkForRestart();
             } else {
@@ -159,8 +192,25 @@ public class GameScreen implements Screen {
         drawPlayer();
         drawHealthDisplay();
 
+        if (!paused
+                && !dialogueBox.isOpen()
+                && !levelComplete
+                && isPlayerNearTerminal()) {
+
+            drawInteractionPrompt();
+        }
+
         if (levelComplete) {
             drawCompletionMessage();
+        }
+
+        if (dialogueBox.isOpen()) {
+            dialogueBox.render(
+                    shapeRenderer,
+                    spriteBatch,
+                    font,
+                    camera
+            );
         }
 
         if (paused) {
@@ -257,6 +307,7 @@ public class GameScreen implements Screen {
         checkPlayerAttack();
         checkDroidContact();
         checkExitDoor();
+        checkTerminalInteraction();
 
         if (!player.isAlive()) {
             player.respawn(
@@ -264,6 +315,27 @@ public class GameScreen implements Screen {
                     PLAYER_RESPAWN_Y
             );
         }
+    }
+    
+    private void checkTerminalInteraction() {
+        if (!isPlayerNearTerminal()) {
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            dialogueBox.open(
+                    "TRAINING TERMINAL",
+                    "How will you approach the next challenge?",
+                    "Observe the situation before acting.",
+                    "Strike quickly and trust the Force."
+            );
+        }
+    }
+
+    private boolean isPlayerNearTerminal() {
+        return player.getBounds().overlaps(
+                terminalInteractionArea
+        );
     }
 
     private void checkPlayerAttack() {
@@ -340,6 +412,8 @@ public class GameScreen implements Screen {
         );
 
         levelComplete = false;
+        trainingChoice = -1;
+        dialogueBox.close();
     }
 
     private void updateCamera() {
@@ -401,6 +475,66 @@ public class GameScreen implements Screen {
 
         shapeRenderer.end();
     }
+    
+    private void drawTrainingTerminal() {
+        shapeRenderer.setColor(
+                0.28f,
+                0.32f,
+                0.38f,
+                1f
+        );
+
+        shapeRenderer.rect(
+                trainingTerminal.x,
+                trainingTerminal.y,
+                trainingTerminal.width,
+                trainingTerminal.height
+        );
+
+        shapeRenderer.setColor(
+                0.12f,
+                0.15f,
+                0.20f,
+                1f
+        );
+
+        shapeRenderer.rect(
+                trainingTerminal.x + 6f,
+                trainingTerminal.y + 35f,
+                trainingTerminal.width - 12f,
+                28f
+        );
+
+        if (trainingChoice == 0) {
+            shapeRenderer.setColor(
+                    0.20f,
+                    1f,
+                    0.40f,
+                    1f
+            );
+        } else if (trainingChoice == 1) {
+            shapeRenderer.setColor(
+                    0.70f,
+                    0.30f,
+                    1f,
+                    1f
+            );
+        } else {
+            shapeRenderer.setColor(
+                    0.20f,
+                    0.70f,
+                    1f,
+                    1f
+            );
+        }
+
+        shapeRenderer.rect(
+                trainingTerminal.x + 11f,
+                trainingTerminal.y + 43f,
+                trainingTerminal.width - 22f,
+                12f
+        );
+    }
 
     private void drawLevel() {
         shapeRenderer.begin(
@@ -446,6 +580,7 @@ public class GameScreen implements Screen {
                 exitDoor.height
         );
 
+        drawTrainingTerminal();
         trainingDroid.render(shapeRenderer);
 
         shapeRenderer.end();
@@ -454,6 +589,20 @@ public class GameScreen implements Screen {
     private void drawPlayer() {
         spriteBatch.begin();
         player.render(spriteBatch);
+        spriteBatch.end();
+    }
+    
+    private void drawInteractionPrompt() {
+        spriteBatch.begin();
+
+        drawCenteredText(
+                "Press E to use the training terminal",
+                camera.position.x,
+                120f,
+                1.1f,
+                Color.CYAN
+        );
+
         spriteBatch.end();
     }
 
