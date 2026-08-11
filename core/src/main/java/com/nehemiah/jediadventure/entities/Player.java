@@ -9,50 +9,67 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 
 public class Player {
 
-    private static final float WIDTH = 32f;
-    private static final float HEIGHT = 56f;
+	private static final float WIDTH = 32f;
+	private static final float HEIGHT = 56f;
 
-    private static final float DRAW_WIDTH = 82f;
-    private static final float DRAW_HEIGHT = 96f;
-    private static final float DRAW_Y_OFFSET = -3f;
+	private static final float DRAW_WIDTH = 82f;
+	private static final float DRAW_HEIGHT = 96f;
+	private static final float DRAW_Y_OFFSET = -3f;
 
-    private static final int SPRITE_FRAME_WIDTH = 544;
-    private static final int SPRITE_FRAME_HEIGHT = 640;
+	private static final float ATTACK_DRAW_WIDTH = 116f;
 
-    private static final float IDLE_FRAME_DURATION = 0.18f;
-    private static final float RUN_FRAME_DURATION = 0.09f;
+	private static final int SPRITE_FRAME_WIDTH = 544;
+	private static final int SPRITE_FRAME_HEIGHT = 640;
 
-    private static final float RUN_SPEED = 300f;
-    private static final float JUMP_SPEED = 700f;
-    private static final float GRAVITY = -1800f;
-    private static final float MAX_FALL_SPEED = -1000f;
+	private static final int ATTACK_FRAME_WIDTH = 768;
+	private static final int ATTACK_FRAME_HEIGHT = 640;
 
-    private static final float COYOTE_DURATION = 0.12f;
-    private static final float JUMP_BUFFER_DURATION = 0.12f;
+	private static final int AIR_FRAME_WIDTH = 544;
+	private static final int AIR_FRAME_HEIGHT = 640;
 
-    private static final float ATTACK_DURATION = 0.18f;
-    private static final float ATTACK_COOLDOWN = 0.32f;
-    private static final float ATTACK_RANGE = 54f;
-    private static final float ATTACK_HEIGHT = 30f;
+	private static final float IDLE_FRAME_DURATION = 0.18f;
+	private static final float RUN_FRAME_DURATION = 0.09f;
+	private static final float ATTACK_FRAME_DURATION = 0.055f;
+	private static final float JUMP_FRAME_DURATION = 0.08f;
+	private static final float FALL_FRAME_DURATION = 0.09f;
 
-    private static final int MAX_HEALTH = 5;
-    private static final float INVULNERABILITY_DURATION = 1f;
-    private static final float DAMAGE_KNOCKBACK = 60f;
+	private static final float RUN_SPEED = 300f;
+	private static final float JUMP_SPEED = 700f;
+	private static final float GRAVITY = -1800f;
+	private static final float MAX_FALL_SPEED = -1000f;
+
+	private static final float COYOTE_DURATION = 0.12f;
+	private static final float JUMP_BUFFER_DURATION = 0.12f;
+
+	private static final float ATTACK_DURATION = 0.22f;
+	private static final float ATTACK_COOLDOWN = 0.34f;
+	private static final float ATTACK_RANGE = 54f;
+	private static final float ATTACK_HEIGHT = 30f;
+
+	private static final int MAX_HEALTH = 5;
+	private static final float INVULNERABILITY_DURATION = 1f;
+	private static final float DAMAGE_KNOCKBACK = 60f;
 
     private final Rectangle bounds;
     private final Rectangle attackBounds;
 
     private final Texture idleTexture;
     private final Texture runTexture;
+    private final Texture attackTexture;
+    private final Animation<TextureRegion> attackAnimation;
+    private final Texture airTexture;
+
+    private float attackAnimationTime;
 
     private final Animation<TextureRegion> idleAnimation;
     private final Animation<TextureRegion> runAnimation;
+    private final Animation<TextureRegion> jumpAnimation;
+    private final Animation<TextureRegion> fallAnimation;
 
     private float velocityY;
     private float coyoteTimer;
@@ -61,6 +78,8 @@ public class Player {
     private float attackCooldownTimer;
     private float invulnerabilityTimer;
     private float animationTime;
+    private float jumpAnimationTime;
+    private float fallAnimationTime;
 
     private int health;
 
@@ -83,6 +102,18 @@ public class Player {
                         "characters/luke/luke_run_6frame.png"
                 )
         );
+        
+        attackTexture = new Texture(
+                Gdx.files.internal(
+                        "characters/luke/luke_attack_quick_4frame.png"
+                )
+        );
+        
+        airTexture = new Texture(
+                Gdx.files.internal(
+                        "characters/luke/luke_air_6frame.png"
+                )
+        );
 
         idleTexture.setFilter(
                 Texture.TextureFilter.Linear,
@@ -90,6 +121,16 @@ public class Player {
         );
 
         runTexture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+        );
+        
+        attackTexture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+        );
+        
+        airTexture.setFilter(
                 Texture.TextureFilter.Linear,
                 Texture.TextureFilter.Linear
         );
@@ -115,6 +156,57 @@ public class Player {
                 RUN_FRAME_DURATION,
                 runFrames[0]
         );
+        
+        TextureRegion[][] attackGrid = TextureRegion.split(
+                attackTexture,
+                ATTACK_FRAME_WIDTH,
+                ATTACK_FRAME_HEIGHT
+        );
+
+        TextureRegion[] attackFrames = {
+                attackGrid[0][0],
+                attackGrid[0][1],
+                attackGrid[1][0],
+                attackGrid[1][1]
+        };
+
+        attackAnimation = new Animation<>(
+                ATTACK_FRAME_DURATION,
+                attackFrames
+        );
+
+        attackAnimation.setPlayMode(Animation.PlayMode.NORMAL);
+
+        TextureRegion[][] airGrid = TextureRegion.split(
+                airTexture,
+                AIR_FRAME_WIDTH,
+                AIR_FRAME_HEIGHT
+        );
+
+        TextureRegion[] jumpFrames = {
+                airGrid[0][0],
+                airGrid[0][1],
+                airGrid[0][2]
+        };
+
+        TextureRegion[] fallFrames = {
+                airGrid[1][0],
+                airGrid[1][1],
+                airGrid[1][2]
+        };
+
+        jumpAnimation = new Animation<>(
+                JUMP_FRAME_DURATION,
+                jumpFrames
+        );
+
+        fallAnimation = new Animation<>(
+                FALL_FRAME_DURATION,
+                fallFrames
+        );
+
+        jumpAnimation.setPlayMode(Animation.PlayMode.NORMAL);
+        fallAnimation.setPlayMode(Animation.PlayMode.NORMAL);
 
         idleAnimation.setPlayMode(Animation.PlayMode.LOOP);
         runAnimation.setPlayMode(Animation.PlayMode.LOOP);
@@ -124,7 +216,7 @@ public class Player {
 
         resetMovement();
     }
-
+    
     public void update(
             float deltaTime,
             float worldWidth,
@@ -160,8 +252,24 @@ public class Player {
 
         applyGravity(deltaTime);
         resolveVerticalCollisions(platforms);
+        updateAirAnimation(deltaTime);
 
         updateAttack(deltaTime);
+    }
+    
+    private void updateAirAnimation(float deltaTime) {
+        if (onGround) {
+            jumpAnimationTime = 0f;
+            fallAnimationTime = 0f;
+            return;
+        }
+
+        if (velocityY > 0f) {
+            jumpAnimationTime += deltaTime;
+            fallAnimationTime = 0f;
+        } else {
+            fallAnimationTime += deltaTime;
+        }
     }
 
     private void updateAnimation(
@@ -259,7 +367,12 @@ public class Player {
     }
 
     private void updateAttack(float deltaTime) {
+        if (attackTimer > 0f) {
+            attackAnimationTime += deltaTime;
+        }
+
         attackTimer = Math.max(0f, attackTimer - deltaTime);
+
         attackCooldownTimer =
                 Math.max(0f, attackCooldownTimer - deltaTime);
 
@@ -270,6 +383,7 @@ public class Player {
         if (attackPressed && attackCooldownTimer <= 0f) {
             attackTimer = ATTACK_DURATION;
             attackCooldownTimer = ATTACK_COOLDOWN;
+            attackAnimationTime = 0f;
         }
 
         float attackX = facingRight
@@ -331,6 +445,9 @@ public class Player {
         attackCooldownTimer = 0f;
         invulnerabilityTimer = 0f;
         animationTime = 0f;
+        attackAnimationTime = 0f;
+        jumpAnimationTime = 0f;
+        fallAnimationTime = 0f;
 
         movingHorizontally = false;
         onGround = true;
@@ -372,20 +489,43 @@ public class Player {
 
     public void render(SpriteBatch spriteBatch) {
         TextureRegion currentFrame;
+        float currentDrawWidth;
 
-        if (!onGround) {
-            // Temporary airborne pose until we add a jump sheet.
-            currentFrame = runAnimation.getKeyFrames()[0];
+        if (isAttacking()) {
+            currentFrame = attackAnimation.getKeyFrame(
+                    attackAnimationTime,
+                    false
+            );
+
+            currentDrawWidth = ATTACK_DRAW_WIDTH;
+        }  else if (!onGround && velocityY > 0f) {
+            currentFrame = jumpAnimation.getKeyFrame(
+                    jumpAnimationTime,
+                    false
+            );
+
+            currentDrawWidth = DRAW_WIDTH;
+        } else if (!onGround) {
+            currentFrame = fallAnimation.getKeyFrame(
+                    fallAnimationTime,
+                    false
+            );
+
+            currentDrawWidth = DRAW_WIDTH;
         } else if (movingHorizontally) {
             currentFrame = runAnimation.getKeyFrame(
                     animationTime,
                     true
             );
+
+            currentDrawWidth = DRAW_WIDTH;
         } else {
             currentFrame = idleAnimation.getKeyFrame(
                     animationTime,
                     true
             );
+
+            currentDrawWidth = DRAW_WIDTH;
         }
 
         boolean damageFlash =
@@ -399,7 +539,8 @@ public class Player {
         }
 
         float drawX =
-                bounds.x + bounds.width / 2f - DRAW_WIDTH / 2f;
+                bounds.x + bounds.width / 2f
+                - currentDrawWidth / 2f;
 
         float drawY = bounds.y + DRAW_Y_OFFSET;
 
@@ -409,9 +550,9 @@ public class Player {
                 currentFrame,
                 drawX,
                 drawY,
-                DRAW_WIDTH / 2f,
+                currentDrawWidth / 2f,
                 0f,
-                DRAW_WIDTH,
+                currentDrawWidth,
                 DRAW_HEIGHT,
                 horizontalScale,
                 1f,
@@ -419,37 +560,6 @@ public class Player {
         );
 
         spriteBatch.setColor(Color.WHITE);
-    }
-
-    public void renderAttack(ShapeRenderer shapeRenderer) {
-        if (isAttacking()) {
-            drawLightsaber(shapeRenderer);
-        }
-    }
-
-    private void drawLightsaber(ShapeRenderer shapeRenderer) {
-        float bladeY =
-                attackBounds.y + attackBounds.height / 2f;
-
-        float hiltX = facingRight
-                ? bounds.x + bounds.width - 2f
-                : bounds.x - 8f;
-
-        shapeRenderer.setColor(0.65f, 0.68f, 0.72f, 1f);
-        shapeRenderer.rect(
-                hiltX,
-                bladeY - 4f,
-                10f,
-                8f
-        );
-
-        shapeRenderer.setColor(0.20f, 1f, 0.35f, 1f);
-        shapeRenderer.rect(
-                attackBounds.x,
-                bladeY - 3f,
-                attackBounds.width,
-                6f
-        );
     }
 
     public Rectangle getBounds() {
@@ -475,9 +585,12 @@ public class Player {
     public boolean isAttacking() {
         return attackTimer > 0f;
     }
-
+    
     public void dispose() {
         idleTexture.dispose();
         runTexture.dispose();
+        attackTexture.dispose();
+        airTexture.dispose();
     }
+    
 }

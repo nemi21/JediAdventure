@@ -118,7 +118,6 @@ public class GameScreen implements Screen {
         drawBackgroundGrid();
         drawLevel();
         drawPlayer();
-        drawPlayerAttack();
         drawHealthDisplay();
     }
 
@@ -217,16 +216,6 @@ public class GameScreen implements Screen {
         spriteBatch.begin();
         player.render(spriteBatch);
         spriteBatch.end();
-    }
-
-    private void drawPlayerAttack() {
-        if (!player.isAttacking()) {
-            return;
-        }
-
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        player.renderAttack(shapeRenderer);
-        shapeRenderer.end();
     }
 
     private void drawHealthDisplay() {
