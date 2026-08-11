@@ -20,6 +20,8 @@ import com.nehemiah.jediadventure.entities.Player;
 import com.nehemiah.jediadventure.entities.TrainingDroid;
 import com.nehemiah.jediadventure.JediAdventure;
 import com.nehemiah.jediadventure.ui.DialogueBox;
+import com.nehemiah.jediadventure.state.GameState;
+import com.nehemiah.jediadventure.state.GameState.TrainingApproach;
 
 public class GameScreen implements Screen {
 
@@ -59,13 +61,16 @@ public class GameScreen implements Screen {
     private final Rectangle trainingTerminal;
     private final Rectangle terminalInteractionArea;
     private final DialogueBox dialogueBox;
-
-    private int trainingChoice;
     
     private final JediAdventure game;
+    private final GameState gameState;
 
-    public GameScreen(JediAdventure game) {
+    public GameScreen(
+            JediAdventure game,
+            GameState gameState) {
+
         this.game = game;
+        this.gameState = gameState;
         camera = new OrthographicCamera();
         viewport = new FitViewport(
                 VIEW_WIDTH,
@@ -133,7 +138,6 @@ public class GameScreen implements Screen {
         );
 
         dialogueBox = new DialogueBox();
-        trainingChoice = -1;
 
         levelComplete = false;
     }
@@ -156,8 +160,14 @@ public class GameScreen implements Screen {
             int selectedChoice =
                     dialogueBox.updateInput();
 
-            if (selectedChoice >= 0) {
-                trainingChoice = selectedChoice;
+            if (selectedChoice == 0) {
+                gameState.setTrainingApproach(
+                        TrainingApproach.OBSERVE_FIRST
+                );
+            } else if (selectedChoice == 1) {
+                gameState.setTrainingApproach(
+                        TrainingApproach.TRUST_THE_FORCE
+                );
             }
         } else if (handlePauseInput()) {
             return;
@@ -391,6 +401,7 @@ public class GameScreen implements Screen {
 
         if (player.getBounds().overlaps(exitDoor)) {
             levelComplete = true;
+            gameState.completeTraining();
         }
     }
 
@@ -412,7 +423,6 @@ public class GameScreen implements Screen {
         );
 
         levelComplete = false;
-        trainingChoice = -1;
         dialogueBox.close();
     }
 
@@ -505,14 +515,21 @@ public class GameScreen implements Screen {
                 28f
         );
 
-        if (trainingChoice == 0) {
+        TrainingApproach trainingApproach =
+                gameState.getTrainingApproach();
+
+        if (trainingApproach
+                == TrainingApproach.OBSERVE_FIRST) {
+
             shapeRenderer.setColor(
                     0.20f,
                     1f,
                     0.40f,
                     1f
             );
-        } else if (trainingChoice == 1) {
+        } else if (trainingApproach
+                == TrainingApproach.TRUST_THE_FORCE) {
+
             shapeRenderer.setColor(
                     0.70f,
                     0.30f,

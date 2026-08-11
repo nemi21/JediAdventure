@@ -4,11 +4,15 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Screen;
 import com.nehemiah.jediadventure.screens.GameScreen;
 import com.nehemiah.jediadventure.screens.MainMenuScreen;
+import com.nehemiah.jediadventure.state.GameState;
 
 public class JediAdventure extends Game {
 
+    private GameState gameState;
+
     @Override
     public void create() {
+        gameState = new GameState();
         showMainMenu();
     }
 
@@ -19,8 +23,13 @@ public class JediAdventure extends Game {
     }
 
     public void startGame() {
+        gameState.reset();
+
         changeScreen(
-                new GameScreen(this)
+                new GameScreen(
+                        this,
+                        gameState
+                )
         );
     }
 
