@@ -18,6 +18,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.nehemiah.jediadventure.entities.Player;
 import com.nehemiah.jediadventure.entities.TrainingDroid;
+import com.nehemiah.jediadventure.JediAdventure;
 
 public class GameScreen implements Screen {
 
@@ -44,10 +45,13 @@ public class GameScreen implements Screen {
 
     private final List<Rectangle> platforms;
     private final Rectangle exitDoor;
+    
+    private final JediAdventure game;
 
     private boolean levelComplete;
 
-    public GameScreen() {
+    public GameScreen(JediAdventure game) {
+        this.game = game;
         camera = new OrthographicCamera();
         viewport = new FitViewport(
                 VIEW_WIDTH,
@@ -109,6 +113,12 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float deltaTime) {
+        // Press Escape at any time to return to the main menu.
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            game.showMainMenu();
+            return;
+        }
+
         float physicsDelta =
                 Math.min(deltaTime, 1f / 30f);
 
