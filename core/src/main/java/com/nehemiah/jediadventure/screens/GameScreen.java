@@ -4,8 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
@@ -24,10 +28,16 @@ public class GameScreen implements Screen {
     private static final float PLAYER_RESPAWN_X = 100f;
     private static final float PLAYER_RESPAWN_Y = 64f;
 
+    private static final float DROID_START_X = 760f;
+    private static final float DROID_START_Y = 64f;
+
     private final OrthographicCamera camera;
     private final FitViewport viewport;
+
     private final ShapeRenderer shapeRenderer;
     private final SpriteBatch spriteBatch;
+    private final BitmapFont font;
+    private final GlyphLayout glyphLayout;
 
     private final Player player;
     private final TrainingDroid trainingDroid;
@@ -35,16 +45,26 @@ public class GameScreen implements Screen {
     private final List<Rectangle> platforms;
     private final Rectangle exitDoor;
 
+    private boolean levelComplete;
+
     public GameScreen() {
         camera = new OrthographicCamera();
-        viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
+        viewport = new FitViewport(
+                VIEW_WIDTH,
+                VIEW_HEIGHT,
+                camera
+        );
 
         shapeRenderer = new ShapeRenderer();
         spriteBatch = new SpriteBatch();
+        font = new BitmapFont();
+        glyphLayout = new GlyphLayout();
 
         platforms = new ArrayList<>();
 
-        platforms.add(new Rectangle(0f, 0f, LEVEL_WIDTH, 64f));
+        platforms.add(
+                new Rectangle(0f, 0f, LEVEL_WIDTH, 64f)
+        );
 
         platforms.add(new Rectangle(220f, 160f, 240f, 32f));
         platforms.add(new Rectangle(560f, 280f, 220f, 32f));
@@ -62,8 +82,8 @@ public class GameScreen implements Screen {
         );
 
         trainingDroid = new TrainingDroid(
-                760f,
-                64f,
+                DROID_START_X,
+                DROID_START_Y,
                 700f,
                 1050f
         );
@@ -74,6 +94,8 @@ public class GameScreen implements Screen {
                 48f,
                 100f
         );
+
+        levelComplete = false;
     }
 
     @Override
@@ -87,27 +109,21 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float deltaTime) {
-        float physicsDelta = Math.min(deltaTime, 1f / 30f);
+        float physicsDelta =
+                Math.min(deltaTime, 1f / 30f);
 
-        player.update(
-                physicsDelta,
-                LEVEL_WIDTH,
-                platforms
-        );
-
-        trainingDroid.update(physicsDelta);
-
-        checkPlayerAttack();
-        checkDroidContact();
-
-        if (!player.isAlive()) {
-            player.respawn(
-                    PLAYER_RESPAWN_X,
-                    PLAYER_RESPAWN_Y
-            );
+        if (levelComplete) {
+            checkForRestart();
+        } else {
+            updateGame(physicsDelta);
         }
 
-        ScreenUtils.clear(0.02f, 0.03f, 0.08f, 1f);
+        ScreenUtils.clear(
+                0.02f,
+                0.03f,
+                0.08f,
+                1f
+        );
 
         viewport.apply();
         updateCamera();
@@ -119,17 +135,55 @@ public class GameScreen implements Screen {
         drawLevel();
         drawPlayer();
         drawHealthDisplay();
+
+        if (levelComplete) {
+            drawCompletionMessage();
+        }
+    }
+
+    private void updateGame(float deltaTime) {
+        player.update(
+                deltaTime,
+                LEVEL_WIDTH,
+                platforms
+        );
+
+        trainingDroid.update(deltaTime);
+
+        checkPlayerAttack();
+        checkDroidContact();
+        checkExitDoor();
+
+        if (!player.isAlive()) {
+            player.respawn(
+                    PLAYER_RESPAWN_X,
+                    PLAYER_RESPAWN_Y
+            );
+        }
     }
 
     private void checkPlayerAttack() {
-        Rectangle attackBounds = player.getAttackBounds();
+        Rectangle attackBounds =
+                player.getAttackBounds();
 
-        if (attackBounds == null || !trainingDroid.isAlive()) {
+        if (attackBounds == null
+                || !trainingDroid.isAlive()) {
             return;
         }
 
-        if (attackBounds.overlaps(trainingDroid.getBounds())) {
-            trainingDroid.takeDamage(1);
+        if (attackBounds.overlaps(
+                trainingDroid.getBounds())) {
+
+            float playerCenterX =
+                    player.getBounds().x
+                    + player.getBounds().width / 2f;
+
+            trainingDroid.takeDamage(
+                    1,
+                    playerCenterX
+            );
+
+            player.markAttackHit();
         }
     }
 
@@ -138,11 +192,13 @@ public class GameScreen implements Screen {
             return;
         }
 
-        Rectangle droidBounds = trainingDroid.getBounds();
+        Rectangle droidBounds =
+                trainingDroid.getBounds();
 
         if (player.getBounds().overlaps(droidBounds)) {
             float droidCenterX =
-                    droidBounds.x + droidBounds.width / 2f;
+                    droidBounds.x
+                    + droidBounds.width / 2f;
 
             player.takeDamage(
                     1,
@@ -152,13 +208,46 @@ public class GameScreen implements Screen {
         }
     }
 
+    private void checkExitDoor() {
+        if (trainingDroid.isAlive()) {
+            return;
+        }
+
+        if (player.getBounds().overlaps(exitDoor)) {
+            levelComplete = true;
+        }
+    }
+
+    private void checkForRestart() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
+            resetLevel();
+        }
+    }
+
+    private void resetLevel() {
+        player.respawn(
+                PLAYER_RESPAWN_X,
+                PLAYER_RESPAWN_Y
+        );
+
+        trainingDroid.reset(
+                DROID_START_X,
+                DROID_START_Y
+        );
+
+        levelComplete = false;
+    }
+
     private void updateCamera() {
-        Rectangle playerBounds = player.getBounds();
+        Rectangle playerBounds =
+                player.getBounds();
 
         float playerCenterX =
-                playerBounds.x + playerBounds.width / 2f;
+                playerBounds.x
+                + playerBounds.width / 2f;
 
-        float halfViewWidth = VIEW_WIDTH / 2f;
+        float halfViewWidth =
+                VIEW_WIDTH / 2f;
 
         camera.position.x = MathUtils.clamp(
                 playerCenterX,
@@ -171,24 +260,55 @@ public class GameScreen implements Screen {
     }
 
     private void drawBackgroundGrid() {
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        shapeRenderer.setColor(0.08f, 0.12f, 0.20f, 1f);
+        shapeRenderer.begin(
+                ShapeRenderer.ShapeType.Line
+        );
 
-        for (float x = 0f; x <= LEVEL_WIDTH; x += 64f) {
-            shapeRenderer.line(x, 0f, x, VIEW_HEIGHT);
+        shapeRenderer.setColor(
+                0.08f,
+                0.12f,
+                0.20f,
+                1f
+        );
+
+        for (float x = 0f;
+                x <= LEVEL_WIDTH;
+                x += 64f) {
+
+            shapeRenderer.line(
+                    x,
+                    0f,
+                    x,
+                    VIEW_HEIGHT
+            );
         }
 
-        for (float y = 0f; y <= VIEW_HEIGHT; y += 64f) {
-            shapeRenderer.line(0f, y, LEVEL_WIDTH, y);
+        for (float y = 0f;
+                y <= VIEW_HEIGHT;
+                y += 64f) {
+
+            shapeRenderer.line(
+                    0f,
+                    y,
+                    LEVEL_WIDTH,
+                    y
+            );
         }
 
         shapeRenderer.end();
     }
 
     private void drawLevel() {
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.begin(
+                ShapeRenderer.ShapeType.Filled
+        );
 
-        shapeRenderer.setColor(0.22f, 0.25f, 0.32f, 1f);
+        shapeRenderer.setColor(
+                0.22f,
+                0.25f,
+                0.32f,
+                1f
+        );
 
         for (Rectangle platform : platforms) {
             shapeRenderer.rect(
@@ -199,7 +319,22 @@ public class GameScreen implements Screen {
             );
         }
 
-        shapeRenderer.setColor(0.65f, 0.12f, 0.12f, 1f);
+        if (trainingDroid.isAlive()) {
+            shapeRenderer.setColor(
+                    0.65f,
+                    0.12f,
+                    0.12f,
+                    1f
+            );
+        } else {
+            shapeRenderer.setColor(
+                    0.12f,
+                    0.75f,
+                    0.30f,
+                    1f
+            );
+        }
+
         shapeRenderer.rect(
                 exitDoor.x,
                 exitDoor.y,
@@ -220,15 +355,28 @@ public class GameScreen implements Screen {
 
     private void drawHealthDisplay() {
         float displayX =
-                camera.position.x - VIEW_WIDTH / 2f + 30f;
+                camera.position.x
+                - VIEW_WIDTH / 2f
+                + 30f;
 
-        float displayY = VIEW_HEIGHT - 45f;
+        float displayY =
+                VIEW_HEIGHT - 45f;
 
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.begin(
+                ShapeRenderer.ShapeType.Filled
+        );
 
-        shapeRenderer.setColor(0.18f, 0.18f, 0.20f, 1f);
+        shapeRenderer.setColor(
+                0.18f,
+                0.18f,
+                0.20f,
+                1f
+        );
 
-        for (int i = 0; i < player.getMaximumHealth(); i++) {
+        for (int i = 0;
+                i < player.getMaximumHealth();
+                i++) {
+
             shapeRenderer.rect(
                     displayX + i * 35f,
                     displayY,
@@ -237,9 +385,17 @@ public class GameScreen implements Screen {
             );
         }
 
-        shapeRenderer.setColor(0.85f, 0.12f, 0.12f, 1f);
+        shapeRenderer.setColor(
+                0.85f,
+                0.12f,
+                0.12f,
+                1f
+        );
 
-        for (int i = 0; i < player.getHealth(); i++) {
+        for (int i = 0;
+                i < player.getHealth();
+                i++) {
+
             shapeRenderer.rect(
                     displayX + i * 35f,
                     displayY,
@@ -251,9 +407,85 @@ public class GameScreen implements Screen {
         shapeRenderer.end();
     }
 
+    private void drawCompletionMessage() {
+        float panelWidth = 640f;
+        float panelHeight = 180f;
+
+        float panelX =
+                camera.position.x
+                - panelWidth / 2f;
+
+        float panelY =
+                camera.position.y
+                - panelHeight / 2f;
+
+        shapeRenderer.begin(
+                ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+                0.03f,
+                0.04f,
+                0.08f,
+                1f
+        );
+
+        shapeRenderer.rect(
+                panelX,
+                panelY,
+                panelWidth,
+                panelHeight
+        );
+
+        shapeRenderer.end();
+
+        spriteBatch.begin();
+
+        font.setColor(Color.GOLD);
+        font.getData().setScale(2f);
+
+        glyphLayout.setText(
+                font,
+                "TRAINING COMPLETE"
+        );
+
+        font.draw(
+                spriteBatch,
+                glyphLayout,
+                camera.position.x
+                        - glyphLayout.width / 2f,
+                panelY + 125f
+        );
+
+        font.setColor(Color.WHITE);
+        font.getData().setScale(1.2f);
+
+        glyphLayout.setText(
+                font,
+                "Press R to restart"
+        );
+
+        font.draw(
+                spriteBatch,
+                glyphLayout,
+                camera.position.x
+                        - glyphLayout.width / 2f,
+                panelY + 60f
+        );
+
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+
+        spriteBatch.end();
+    }
+
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, true);
+        viewport.update(
+                width,
+                height,
+                true
+        );
     }
 
     @Override
@@ -271,6 +503,7 @@ public class GameScreen implements Screen {
     @Override
     public void dispose() {
         player.dispose();
+        font.dispose();
         spriteBatch.dispose();
         shapeRenderer.dispose();
     }

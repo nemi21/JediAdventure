@@ -1,22 +1,32 @@
 package com.nehemiah.jediadventure.entities;
 
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 
 public class TrainingDroid {
 
     private static final float WIDTH = 40f;
     private static final float HEIGHT = 56f;
+
     private static final float PATROL_SPEED = 110f;
+
     private static final float DAMAGE_FLASH_DURATION = 0.20f;
+    private static final float HIT_STUN_DURATION = 0.14f;
+    private static final float KNOCKBACK_DISTANCE = 55f;
 
     private final Rectangle bounds;
     private final float patrolMinimumX;
     private final float patrolMaximumX;
+    
+    private static final int MAX_HEALTH = 3;
 
     private int health;
+
     private float patrolDirection;
     private float damageFlashTimer;
+    private float hitStunTimer;
+
     private boolean alive;
 
     public TrainingDroid(
@@ -35,9 +45,10 @@ public class TrainingDroid {
         this.patrolMinimumX = patrolMinimumX;
         this.patrolMaximumX = patrolMaximumX;
 
-        health = 3;
+        health = MAX_HEALTH ;
         patrolDirection = 1f;
         damageFlashTimer = 0f;
+        hitStunTimer = 0f;
         alive = true;
     }
 
@@ -48,6 +59,14 @@ public class TrainingDroid {
 
         damageFlashTimer =
                 Math.max(0f, damageFlashTimer - deltaTime);
+
+        hitStunTimer =
+                Math.max(0f, hitStunTimer - deltaTime);
+
+        // The droid temporarily stops moving after being hit.
+        if (hitStunTimer > 0f) {
+            return;
+        }
 
         bounds.x += patrolDirection * PATROL_SPEED * deltaTime;
 
@@ -60,13 +79,39 @@ public class TrainingDroid {
         }
     }
 
-    public void takeDamage(int damage) {
+    public void takeDamage(
+            int damage,
+            float attackerCenterX) {
+
         if (!alive || damageFlashTimer > 0f) {
             return;
         }
 
         health -= damage;
         damageFlashTimer = DAMAGE_FLASH_DURATION;
+        hitStunTimer = HIT_STUN_DURATION;
+
+        float droidCenterX =
+                bounds.x + bounds.width / 2f;
+
+        float knockbackDirection;
+
+        if (attackerCenterX < droidCenterX) {
+            knockbackDirection = 1f;
+        } else {
+            knockbackDirection = -1f;
+        }
+
+        bounds.x += knockbackDirection * KNOCKBACK_DISTANCE;
+
+        bounds.x = MathUtils.clamp(
+                bounds.x,
+                patrolMinimumX,
+                patrolMaximumX
+        );
+
+        // After being hit, the droid begins moving away from Luke.
+        patrolDirection = knockbackDirection;
 
         if (health <= 0) {
             health = 0;
@@ -80,9 +125,19 @@ public class TrainingDroid {
         }
 
         if (damageFlashTimer > 0f) {
-            shapeRenderer.setColor(1f, 0.20f, 0.20f, 1f);
+            shapeRenderer.setColor(
+                    1f,
+                    0.20f,
+                    0.20f,
+                    1f
+            );
         } else {
-            shapeRenderer.setColor(0.55f, 0.58f, 0.65f, 1f);
+            shapeRenderer.setColor(
+                    0.55f,
+                    0.58f,
+                    0.65f,
+                    1f
+            );
         }
 
         shapeRenderer.rect(
@@ -98,7 +153,13 @@ public class TrainingDroid {
                 12f
         );
 
-        shapeRenderer.setColor(1f, 0.05f, 0.05f, 1f);
+        shapeRenderer.setColor(
+                1f,
+                0.05f,
+                0.05f,
+                1f
+        );
+
         shapeRenderer.rect(
                 bounds.x + 12f,
                 bounds.y + bounds.height - 11f,
@@ -106,7 +167,12 @@ public class TrainingDroid {
                 5f
         );
 
-        shapeRenderer.setColor(0.20f, 1f, 0.35f, 1f);
+        shapeRenderer.setColor(
+                0.20f,
+                1f,
+                0.35f,
+                1f
+        );
 
         for (int i = 0; i < health; i++) {
             shapeRenderer.rect(
@@ -116,6 +182,16 @@ public class TrainingDroid {
                     5f
             );
         }
+    }
+    
+    public void reset(float startingX, float startingY) {
+        bounds.setPosition(startingX, startingY);
+
+        health = MAX_HEALTH;
+        patrolDirection = 1f;
+        damageFlashTimer = 0f;
+        hitStunTimer = 0f;
+        alive = true;
     }
 
     public Rectangle getBounds() {

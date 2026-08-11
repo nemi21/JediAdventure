@@ -86,6 +86,7 @@ public class Player {
     private boolean onGround;
     private boolean facingRight;
     private boolean movingHorizontally;
+    private boolean attackHasHit;
 
     public Player(float startingX, float startingY) {
         bounds = new Rectangle(startingX, startingY, WIDTH, HEIGHT);
@@ -384,6 +385,7 @@ public class Player {
             attackTimer = ATTACK_DURATION;
             attackCooldownTimer = ATTACK_COOLDOWN;
             attackAnimationTime = 0f;
+            attackHasHit = false;
         }
 
         float attackX = facingRight
@@ -451,6 +453,7 @@ public class Player {
 
         movingHorizontally = false;
         onGround = true;
+        attackHasHit = false;
     }
 
     private void resolveHorizontalCollisions(
@@ -567,7 +570,15 @@ public class Player {
     }
 
     public Rectangle getAttackBounds() {
-        return isAttacking() ? attackBounds : null;
+        if (!isAttacking() || attackHasHit) {
+            return null;
+        }
+
+        return attackBounds;
+    }
+    
+    public void markAttackHit() {
+        attackHasHit = true;
     }
 
     public int getHealth() {
