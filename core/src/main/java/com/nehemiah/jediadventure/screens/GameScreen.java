@@ -31,6 +31,16 @@ public class GameScreen implements Screen {
 
     private static final float DROID_START_X = 760f;
     private static final float DROID_START_Y = 64f;
+    
+    private static final int PAUSE_RESUME_OPTION = 0;
+    private static final int PAUSE_CONTROLS_OPTION = 1;
+    private static final int PAUSE_MAIN_MENU_OPTION = 2;
+    private static final int PAUSE_OPTION_COUNT = 3;
+    
+    private boolean levelComplete;
+    private boolean paused;
+    private boolean showingPauseControls;
+    private int selectedPauseOption;
 
     private final OrthographicCamera camera;
     private final FitViewport viewport;
@@ -48,8 +58,6 @@ public class GameScreen implements Screen {
     
     private final JediAdventure game;
 
-    private boolean levelComplete;
-
     public GameScreen(JediAdventure game) {
         this.game = game;
         camera = new OrthographicCamera();
@@ -58,7 +66,12 @@ public class GameScreen implements Screen {
                 VIEW_HEIGHT,
                 camera
         );
-
+        
+        
+        paused = false;
+        showingPauseControls = false;
+        selectedPauseOption = PAUSE_RESUME_OPTION;
+        
         shapeRenderer = new ShapeRenderer();
         spriteBatch = new SpriteBatch();
         font = new BitmapFont();
@@ -113,19 +126,19 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float deltaTime) {
-        // Press Escape at any time to return to the main menu.
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            game.showMainMenu();
+        if (handlePauseInput()) {
             return;
         }
 
         float physicsDelta =
                 Math.min(deltaTime, 1f / 30f);
 
-        if (levelComplete) {
-            checkForRestart();
-        } else {
-            updateGame(physicsDelta);
+        if (!paused) {
+            if (levelComplete) {
+                checkForRestart();
+            } else {
+                updateGame(physicsDelta);
+            }
         }
 
         ScreenUtils.clear(
@@ -149,6 +162,87 @@ public class GameScreen implements Screen {
         if (levelComplete) {
             drawCompletionMessage();
         }
+
+        if (paused) {
+            if (showingPauseControls) {
+                drawPauseControls();
+            } else {
+                drawPauseMenu();
+            }
+        }
+    }
+    
+    private boolean handlePauseInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            if (!paused) {
+                paused = true;
+                showingPauseControls = false;
+                selectedPauseOption = PAUSE_RESUME_OPTION;
+            } else if (showingPauseControls) {
+                showingPauseControls = false;
+            } else {
+                paused = false;
+            }
+
+            return false;
+        }
+
+        if (!paused) {
+            return false;
+        }
+
+        if (showingPauseControls) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)
+                    || Gdx.input.isKeyJustPressed(
+                            Input.Keys.BACKSPACE)) {
+
+                showingPauseControls = false;
+            }
+
+            return false;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.UP)
+                || Gdx.input.isKeyJustPressed(Input.Keys.W)) {
+
+            selectedPauseOption =
+                    (selectedPauseOption - 1
+                    + PAUSE_OPTION_COUNT)
+                    % PAUSE_OPTION_COUNT;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN)
+                || Gdx.input.isKeyJustPressed(Input.Keys.S)) {
+
+            selectedPauseOption =
+                    (selectedPauseOption + 1)
+                    % PAUSE_OPTION_COUNT;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+            return activatePauseOption();
+        }
+
+        return false;
+    }
+
+    private boolean activatePauseOption() {
+        if (selectedPauseOption == PAUSE_RESUME_OPTION) {
+            paused = false;
+            return false;
+        }
+
+        if (selectedPauseOption == PAUSE_CONTROLS_OPTION) {
+            showingPauseControls = true;
+            return false;
+        }
+
+        if (selectedPauseOption == PAUSE_MAIN_MENU_OPTION) {
+            game.showMainMenu();
+            return true;
+        }
+
+        return false;
     }
 
     private void updateGame(float deltaTime) {
@@ -487,6 +581,224 @@ public class GameScreen implements Screen {
         font.setColor(Color.WHITE);
 
         spriteBatch.end();
+    }
+    
+    private void drawPauseMenu() {
+        float panelWidth = 620f;
+        float panelHeight = 520f;
+
+        float panelX =
+                camera.position.x - panelWidth / 2f;
+
+        float panelY =
+                camera.position.y - panelHeight / 2f;
+
+        float buttonWidth = 400f;
+        float buttonHeight = 60f;
+
+        float buttonX =
+                camera.position.x - buttonWidth / 2f;
+
+        float[] buttonYPositions = {
+                camera.position.y + 30f,
+                camera.position.y - 60f,
+                camera.position.y - 150f
+        };
+
+        shapeRenderer.begin(
+                ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+                0.02f,
+                0.04f,
+                0.09f,
+                1f
+        );
+
+        shapeRenderer.rect(
+                panelX,
+                panelY,
+                panelWidth,
+                panelHeight
+        );
+
+        for (int i = 0; i < PAUSE_OPTION_COUNT; i++) {
+            if (i == selectedPauseOption) {
+                shapeRenderer.setColor(
+                        0.16f,
+                        0.55f,
+                        0.85f,
+                        1f
+                );
+            } else {
+                shapeRenderer.setColor(
+                        0.10f,
+                        0.15f,
+                        0.25f,
+                        1f
+                );
+            }
+
+            shapeRenderer.rect(
+                    buttonX,
+                    buttonYPositions[i],
+                    buttonWidth,
+                    buttonHeight
+            );
+        }
+
+        shapeRenderer.end();
+
+        spriteBatch.begin();
+
+        drawCenteredText(
+                "GAME PAUSED",
+                camera.position.x,
+                camera.position.y + 205f,
+                2.5f,
+                Color.GOLD
+        );
+
+        drawCenteredText(
+                "RESUME",
+                camera.position.x,
+                buttonYPositions[PAUSE_RESUME_OPTION] + 40f,
+                1.4f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "CONTROLS",
+                camera.position.x,
+                buttonYPositions[PAUSE_CONTROLS_OPTION] + 40f,
+                1.4f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "RETURN TO MAIN MENU",
+                camera.position.x,
+                buttonYPositions[PAUSE_MAIN_MENU_OPTION] + 40f,
+                1.4f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "Use W/S or arrows and press Enter",
+                camera.position.x,
+                panelY + 45f,
+                1f,
+                Color.LIGHT_GRAY
+        );
+
+        spriteBatch.end();
+    }
+
+    private void drawPauseControls() {
+        float panelWidth = 620f;
+        float panelHeight = 520f;
+
+        float panelX =
+                camera.position.x - panelWidth / 2f;
+
+        float panelY =
+                camera.position.y - panelHeight / 2f;
+
+        shapeRenderer.begin(
+                ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+                0.02f,
+                0.04f,
+                0.09f,
+                1f
+        );
+
+        shapeRenderer.rect(
+                panelX,
+                panelY,
+                panelWidth,
+                panelHeight
+        );
+
+        shapeRenderer.end();
+
+        spriteBatch.begin();
+
+        drawCenteredText(
+                "CONTROLS",
+                camera.position.x,
+                camera.position.y + 205f,
+                2.5f,
+                Color.GOLD
+        );
+
+        drawCenteredText(
+                "Move: A / D or Left / Right",
+                camera.position.x,
+                camera.position.y + 110f,
+                1.3f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "Jump: Space, W, or Up",
+                camera.position.x,
+                camera.position.y + 45f,
+                1.3f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "Lightsaber: J or Left Mouse",
+                camera.position.x,
+                camera.position.y - 20f,
+                1.3f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "Pause: Escape",
+                camera.position.x,
+                camera.position.y - 85f,
+                1.3f,
+                Color.WHITE
+        );
+
+        drawCenteredText(
+                "Press Escape, Enter, or Backspace to return",
+                camera.position.x,
+                panelY + 55f,
+                1f,
+                Color.LIGHT_GRAY
+        );
+
+        spriteBatch.end();
+    }
+
+    private void drawCenteredText(
+            String text,
+            float centerX,
+            float y,
+            float scale,
+            Color color) {
+
+        font.getData().setScale(scale);
+        font.setColor(color);
+
+        glyphLayout.setText(font, text);
+
+        font.draw(
+                spriteBatch,
+                glyphLayout,
+                centerX - glyphLayout.width / 2f,
+                y
+        );
+
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
     }
 
     @Override
