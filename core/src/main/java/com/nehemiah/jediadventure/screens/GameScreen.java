@@ -64,6 +64,7 @@ public class GameScreen implements Screen {
     private final List<Rectangle> platforms;
     private final Rectangle exitDoor;
     private final Rectangle checkpoint;
+    private final List<Rectangle> oneWayPlatforms;
 
     private float activeRespawnX;
     private float activeRespawnY;
@@ -101,6 +102,20 @@ public class GameScreen implements Screen {
         glyphLayout = new GlyphLayout();
 
         platforms = new ArrayList<>();
+        
+        oneWayPlatforms = new ArrayList<>();
+        
+        oneWayPlatforms.add(
+                new Rectangle(1500f, 360f, 200f, 20f)
+        );
+
+        oneWayPlatforms.add(
+                new Rectangle(1880f, 480f, 220f, 20f)
+        );
+
+        oneWayPlatforms.add(
+                new Rectangle(2380f, 400f, 220f, 20f)
+        );
 
      // Ground before the first pit.
         platforms.add(
@@ -351,11 +366,12 @@ public class GameScreen implements Screen {
     }
 
     private void updateGame(float deltaTime) {
-        player.update(
-                deltaTime,
-                LEVEL_WIDTH,
-                platforms
-        );
+    	player.update(
+    	        deltaTime,
+    	        LEVEL_WIDTH,
+    	        platforms,
+    	        oneWayPlatforms
+    	);
         
         updateCheckpointAndFalling(deltaTime);
         trainingDroid.update(deltaTime);
@@ -698,6 +714,22 @@ public class GameScreen implements Screen {
                 exitDoor.width,
                 exitDoor.height
         );
+        
+        shapeRenderer.setColor(
+                0.20f,
+                0.48f,
+                0.65f,
+                1f
+        );
+
+        for (Rectangle platform : oneWayPlatforms) {
+            shapeRenderer.rect(
+                    platform.x,
+                    platform.y,
+                    platform.width,
+                    platform.height
+            );
+        }
 
         drawTrainingTerminal();
         drawCheckpoint();

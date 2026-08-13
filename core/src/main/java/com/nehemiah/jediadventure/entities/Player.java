@@ -42,6 +42,7 @@ public class Player {
 	private static final float JUMP_SPEED = 700f;
 	private static final float GRAVITY = -1800f;
 	private static final float MAX_FALL_SPEED = -1000f;
+	private static final float DROP_THROUGH_DURATION = 0.20f;
 
 	private static final float COYOTE_DURATION = 0.12f;
 	private static final float JUMP_BUFFER_DURATION = 0.12f;
@@ -80,6 +81,8 @@ public class Player {
     private float animationTime;
     private float jumpAnimationTime;
     private float fallAnimationTime;
+    private float dropThroughTimer;
+    private boolean standingOnOneWayPlatform;
 
     private int health;
 
@@ -221,7 +224,11 @@ public class Player {
     public void update(
             float deltaTime,
             float worldWidth,
-            List<Rectangle> platforms) {
+            List<Rectangle> platforms,
+            List<Rectangle> oneWayPlatforms) {
+    	
+    	dropThroughTimer =
+    	        Math.max(0f, dropThroughTimer - deltaTime);
 
         invulnerabilityTimer =
                 Math.max(0f, invulnerabilityTimer - deltaTime);
@@ -251,8 +258,19 @@ public class Player {
         updateJumpTimers(deltaTime);
         checkForJump();
 
+        float previousY = bounds.y;
+
         applyGravity(deltaTime);
+
+        standingOnOneWayPlatform = false;
+
         resolveVerticalCollisions(platforms);
+
+        resolveOneWayPlatformCollisions(
+                oneWayPlatforms,
+                previousY
+        );
+
         updateAirAnimation(deltaTime);
 
         updateAttack(deltaTime);
@@ -323,7 +341,8 @@ public class Player {
         if (onGround) {
             coyoteTimer = COYOTE_DURATION;
         } else {
-            coyoteTimer = Math.max(0f, coyoteTimer - deltaTime);
+            coyoteTimer =
+                    Math.max(0f, coyoteTimer - deltaTime);
         }
 
         boolean jumpPressed =
@@ -331,7 +350,26 @@ public class Player {
                 || Gdx.input.isKeyJustPressed(Input.Keys.W)
                 || Gdx.input.isKeyJustPressed(Input.Keys.UP);
 
-        if (jumpPressed) {
+        boolean downHeld =
+                Gdx.input.isKeyPressed(Input.Keys.S)
+                || Gdx.input.isKeyPressed(Input.Keys.DOWN);
+
+        if (jumpPressed
+                && downHeld
+                && standingOnOneWayPlatform) {
+
+            dropThroughTimer = DROP_THROUGH_DURATION;
+
+            jumpBufferTimer = 0f;
+            coyoteTimer = 0f;
+
+            onGround = false;
+            standingOnOneWayPlatform = false;
+
+            // Move Luke slightly below the platform.
+            bounds.y -= 6f;
+
+        } else if (jumpPressed) {
             jumpBufferTimer = JUMP_BUFFER_DURATION;
         } else {
             jumpBufferTimer =
@@ -454,6 +492,9 @@ public class Player {
         movingHorizontally = false;
         onGround = true;
         attackHasHit = false;
+        
+        dropThroughTimer = 0f;
+        standingOnOneWayPlatform = false;
     }
 
     private void resolveHorizontalCollisions(
@@ -469,6 +510,44 @@ public class Player {
                 bounds.x = platform.x - bounds.width;
             } else if (moveX < 0f) {
                 bounds.x = platform.x + platform.width;
+            }
+        }
+    }
+    
+    private void resolveOneWayPlatformCollisions(
+            List<Rectangle> oneWayPlatforms,
+            float previousY) {
+
+        if (velocityY > 0f || dropThroughTimer > 0f) {
+            return;
+        }
+
+        float previousBottom = previousY;
+        float currentBottom = bounds.y;
+
+        for (Rectangle platform : oneWayPlatforms) {
+            float platformTop =
+                    platform.y + platform.height;
+
+            boolean horizontallyOverlapping =
+                    bounds.x + bounds.width > platform.x
+                    && bounds.x
+                    < platform.x + platform.width;
+
+            boolean crossedPlatformTop =
+                    previousBottom >= platformTop
+                    && currentBottom <= platformTop;
+
+            if (horizontallyOverlapping
+                    && crossedPlatformTop) {
+
+                bounds.y = platformTop;
+                velocityY = 0f;
+
+                onGround = true;
+                standingOnOneWayPlatform = true;
+
+                return;
             }
         }
     }
