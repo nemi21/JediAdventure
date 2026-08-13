@@ -43,6 +43,11 @@ public class Player {
 	private static final float GRAVITY = -1800f;
 	private static final float MAX_FALL_SPEED = -1000f;
 	private static final float DROP_THROUGH_DURATION = 0.20f;
+	
+	private static final float WALL_SLIDE_SPEED = -180f;
+	private static final float WALL_JUMP_HORIZONTAL_SPEED = 420f;
+	private static final float WALL_JUMP_VERTICAL_SPEED = 680f;
+	private static final float WALL_JUMP_CONTROL_DURATION = 0.13f;
 
 	private static final float COYOTE_DURATION = 0.12f;
 	private static final float JUMP_BUFFER_DURATION = 0.12f;
@@ -82,6 +87,8 @@ public class Player {
     private float jumpAnimationTime;
     private float fallAnimationTime;
     private float dropThroughTimer;
+    private float wallJumpControlTimer;
+    private float wallJumpDirection;
     private boolean standingOnOneWayPlatform;
 
     private int health;
@@ -90,6 +97,10 @@ public class Player {
     private boolean facingRight;
     private boolean movingHorizontally;
     private boolean attackHasHit;
+    
+    private boolean touchingWallLeft;
+    private boolean touchingWallRight;
+    private boolean wallSliding;
 
     public Player(float startingX, float startingY) {
         bounds = new Rectangle(startingX, startingY, WIDTH, HEIGHT);
@@ -226,19 +237,35 @@ public class Player {
             float worldWidth,
             List<Rectangle> platforms,
             List<Rectangle> oneWayPlatforms) {
-    	
-    	dropThroughTimer =
-    	        Math.max(0f, dropThroughTimer - deltaTime);
+
+        dropThroughTimer =
+                Math.max(
+                        0f,
+                        dropThroughTimer - deltaTime
+                );
+
+        wallJumpControlTimer =
+                Math.max(
+                        0f,
+                        wallJumpControlTimer - deltaTime
+                );
 
         invulnerabilityTimer =
-                Math.max(0f, invulnerabilityTimer - deltaTime);
+                Math.max(
+                        0f,
+                        invulnerabilityTimer - deltaTime
+                );
 
         float moveX = readHorizontalMovement();
 
-        if (moveX > 0f) {
-            facingRight = true;
-        } else if (moveX < 0f) {
-            facingRight = false;
+        // During the brief wall-jump movement, Luke continues
+        // facing away from the wall.
+        if (wallJumpControlTimer <= 0f) {
+            if (moveX > 0f) {
+                facingRight = true;
+            } else if (moveX < 0f) {
+                facingRight = false;
+            }
         }
 
         float previousX = bounds.x;
@@ -253,14 +280,20 @@ public class Player {
         boolean currentlyMoving =
                 Math.abs(bounds.x - previousX) > 0.01f;
 
-        updateAnimation(deltaTime, currentlyMoving);
+        updateAnimation(
+                deltaTime,
+                currentlyMoving
+        );
 
         updateJumpTimers(deltaTime);
         checkForJump();
 
         float previousY = bounds.y;
 
-        applyGravity(deltaTime);
+        applyGravity(
+                deltaTime,
+                moveX
+        );
 
         standingOnOneWayPlatform = false;
 
@@ -271,8 +304,11 @@ public class Player {
                 previousY
         );
 
-        updateAirAnimation(deltaTime);
+        if (onGround) {
+            wallSliding = false;
+        }
 
+        updateAirAnimation(deltaTime);
         updateAttack(deltaTime);
     }
     
@@ -326,7 +362,20 @@ public class Player {
             float worldWidth,
             List<Rectangle> platforms) {
 
-        bounds.x += moveX * RUN_SPEED * deltaTime;
+        touchingWallLeft = false;
+        touchingWallRight = false;
+
+        float horizontalSpeed =
+                moveX * RUN_SPEED;
+
+        // Briefly push Luke away from the wall after a wall jump.
+        if (wallJumpControlTimer > 0f) {
+            horizontalSpeed =
+                    wallJumpDirection
+                    * WALL_JUMP_HORIZONTAL_SPEED;
+        }
+
+        bounds.x += horizontalSpeed * deltaTime;
 
         bounds.x = MathUtils.clamp(
                 bounds.x,
@@ -334,7 +383,13 @@ public class Player {
                 worldWidth - bounds.width
         );
 
-        resolveHorizontalCollisions(platforms, moveX);
+        float movementDirection =
+                Math.signum(horizontalSpeed);
+
+        resolveHorizontalCollisions(
+                platforms,
+                movementDirection
+        );
     }
 
     private void updateJumpTimers(float deltaTime) {
@@ -378,15 +433,50 @@ public class Player {
     }
 
     private void checkForJump() {
-        if (jumpBufferTimer > 0f && coyoteTimer > 0f) {
-            velocityY = JUMP_SPEED;
+        if (jumpBufferTimer <= 0f) {
+            return;
+        }
+
+        boolean canWallJump =
+                !onGround
+                && (touchingWallLeft || touchingWallRight);
+
+        if (canWallJump) {
+            if (touchingWallLeft) {
+                wallJumpDirection = 1f;
+            } else {
+                wallJumpDirection = -1f;
+            }
+
+            velocityY = WALL_JUMP_VERTICAL_SPEED;
+            wallJumpControlTimer =
+                    WALL_JUMP_CONTROL_DURATION;
+
+            facingRight = wallJumpDirection > 0f;
+
+            jumpBufferTimer = 0f;
+            coyoteTimer = 0f;
+
             onGround = false;
+            wallSliding = false;
+
+            return;
+        }
+
+        if (coyoteTimer > 0f) {
+            velocityY = JUMP_SPEED;
+
+            onGround = false;
+
             jumpBufferTimer = 0f;
             coyoteTimer = 0f;
         }
     }
 
-    private void applyGravity(float deltaTime) {
+    private void applyGravity(
+            float deltaTime,
+            float moveX) {
+
         boolean jumpHeld =
                 Gdx.input.isKeyPressed(Input.Keys.SPACE)
                 || Gdx.input.isKeyPressed(Input.Keys.W)
@@ -398,8 +488,34 @@ public class Player {
             gravityMultiplier = 2.5f;
         }
 
-        velocityY += GRAVITY * gravityMultiplier * deltaTime;
-        velocityY = Math.max(velocityY, MAX_FALL_SPEED);
+        velocityY +=
+                GRAVITY
+                * gravityMultiplier
+                * deltaTime;
+
+        velocityY =
+                Math.max(
+                        velocityY,
+                        MAX_FALL_SPEED
+                );
+
+        boolean pressingTowardWall =
+                (touchingWallLeft && moveX < 0f)
+                || (touchingWallRight && moveX > 0f);
+
+        wallSliding =
+                wallJumpControlTimer <= 0f
+                && !onGround
+                && velocityY < 0f
+                && pressingTowardWall;
+
+        if (wallSliding) {
+            velocityY =
+                    Math.max(
+                            velocityY,
+                            WALL_SLIDE_SPEED
+                    );
+        }
 
         bounds.y += velocityY * deltaTime;
         onGround = false;
@@ -495,21 +611,35 @@ public class Player {
         
         dropThroughTimer = 0f;
         standingOnOneWayPlatform = false;
+        
+        wallJumpControlTimer = 0f;
+        wallJumpDirection = 0f;
+
+        touchingWallLeft = false;
+        touchingWallRight = false;
+        wallSliding = false;
     }
 
     private void resolveHorizontalCollisions(
             List<Rectangle> platforms,
-            float moveX) {
+            float movementDirection) {
 
         for (Rectangle platform : platforms) {
             if (!bounds.overlaps(platform)) {
                 continue;
             }
 
-            if (moveX > 0f) {
-                bounds.x = platform.x - bounds.width;
-            } else if (moveX < 0f) {
-                bounds.x = platform.x + platform.width;
+            if (movementDirection > 0f) {
+                bounds.x =
+                        platform.x - bounds.width;
+
+                touchingWallRight = true;
+
+            } else if (movementDirection < 0f) {
+                bounds.x =
+                        platform.x + platform.width;
+
+                touchingWallLeft = true;
             }
         }
     }

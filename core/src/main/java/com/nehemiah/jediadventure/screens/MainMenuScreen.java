@@ -378,7 +378,7 @@ public class MainMenuScreen implements Screen {
         );
 
         drawCenteredText(
-                "Jump: Space, W, or Up",
+        		"Jump / Wall Jump: Space, W, or Up",
                 VIEW_WIDTH / 2f,
                 450f,
                 1.35f,

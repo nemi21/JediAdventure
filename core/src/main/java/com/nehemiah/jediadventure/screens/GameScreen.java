@@ -131,6 +131,16 @@ public class GameScreen implements Screen {
         platforms.add(
                 new Rectangle(2320f, 0f, 880f, 64f)
         );
+        
+     // Tall wall used to test wall sliding and wall jumping.
+        platforms.add(
+                new Rectangle(
+                        2820f,
+                        64f,
+                        100f,
+                        320f
+                )
+        );
 
         platforms.add(new Rectangle(220f, 160f, 240f, 32f));
         platforms.add(new Rectangle(560f, 280f, 220f, 32f));
