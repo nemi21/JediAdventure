@@ -177,11 +177,13 @@ public class GameScreen implements Screen {
                 Math.min(deltaTime, 1f / 30f);
 
         if (!paused && !dialogueBox.isOpen()) {
-            if (levelComplete) {
-                checkForRestart();
-            } else {
-                updateGame(physicsDelta);
-            }
+        	if (levelComplete) {
+        	    if (checkForRestart()) {
+        	        return;
+        	    }
+        	} else {
+        	    updateGame(physicsDelta);
+        	}
         }
 
         ScreenUtils.clear(
@@ -405,10 +407,17 @@ public class GameScreen implements Screen {
         }
     }
 
-    private void checkForRestart() {
+    private boolean checkForRestart() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+            game.showTrainingDebrief();
+            return true;
+        }
+
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
             resetLevel();
         }
+
+        return false;
     }
 
     private void resetLevel() {
@@ -714,9 +723,11 @@ public class GameScreen implements Screen {
         font.setColor(Color.GOLD);
         font.getData().setScale(2f);
 
+        font.getData().setScale(1.05f);
+
         glyphLayout.setText(
                 font,
-                "TRAINING COMPLETE"
+                "Press Enter to continue"
         );
 
         font.draw(
@@ -724,7 +735,20 @@ public class GameScreen implements Screen {
                 glyphLayout,
                 camera.position.x
                         - glyphLayout.width / 2f,
-                panelY + 125f
+                panelY + 75f
+        );
+
+        glyphLayout.setText(
+                font,
+                "Press R to replay"
+        );
+
+        font.draw(
+                spriteBatch,
+                glyphLayout,
+                camera.position.x
+                        - glyphLayout.width / 2f,
+                panelY + 42f
         );
 
         font.setColor(Color.WHITE);
