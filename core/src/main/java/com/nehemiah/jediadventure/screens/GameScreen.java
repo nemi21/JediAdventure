@@ -31,6 +31,11 @@ public class GameScreen implements Screen {
 
     private static final float PLAYER_RESPAWN_X = 100f;
     private static final float PLAYER_RESPAWN_Y = 64f;
+    
+    private static final float FALL_RESPAWN_LIMIT = -160f;
+
+    private static final float CHECKPOINT_RESPAWN_X = 1840f;
+    private static final float CHECKPOINT_RESPAWN_Y = 64f;
 
     private static final float DROID_START_X = 760f;
     private static final float DROID_START_Y = 64f;
@@ -58,6 +63,13 @@ public class GameScreen implements Screen {
 
     private final List<Rectangle> platforms;
     private final Rectangle exitDoor;
+    private final Rectangle checkpoint;
+
+    private float activeRespawnX;
+    private float activeRespawnY;
+    private float checkpointMessageTimer;
+
+    private boolean checkpointActivated;
     private final Rectangle trainingTerminal;
     private final Rectangle terminalInteractionArea;
     private final DialogueBox dialogueBox;
@@ -90,8 +102,19 @@ public class GameScreen implements Screen {
 
         platforms = new ArrayList<>();
 
+     // Ground before the first pit.
         platforms.add(
-                new Rectangle(0f, 0f, LEVEL_WIDTH, 64f)
+                new Rectangle(0f, 0f, 1320f, 64f)
+        );
+
+        // Ground between the two pits.
+        platforms.add(
+                new Rectangle(1440f, 0f, 740f, 64f)
+        );
+
+        // Ground after the second pit.
+        platforms.add(
+                new Rectangle(2320f, 0f, 880f, 64f)
         );
 
         platforms.add(new Rectangle(220f, 160f, 240f, 32f));
@@ -136,6 +159,19 @@ public class GameScreen implements Screen {
                 trainingTerminal.width + 130f,
                 trainingTerminal.height + 20f
         );
+        
+        checkpoint = new Rectangle(
+                1780f,
+                64f,
+                40f,
+                100f
+        );
+
+        activeRespawnX = PLAYER_RESPAWN_X;
+        activeRespawnY = PLAYER_RESPAWN_Y;
+
+        checkpointActivated = false;
+        checkpointMessageTimer = 0f;
 
         dialogueBox = new DialogueBox();
 
@@ -203,6 +239,13 @@ public class GameScreen implements Screen {
         drawLevel();
         drawPlayer();
         drawHealthDisplay();
+        
+        if (checkpointMessageTimer > 0f
+                && !paused
+                && !dialogueBox.isOpen()) {
+
+            drawCheckpointMessage();
+        }
 
         if (!paused
                 && !dialogueBox.isOpen()
@@ -313,7 +356,8 @@ public class GameScreen implements Screen {
                 LEVEL_WIDTH,
                 platforms
         );
-
+        
+        updateCheckpointAndFalling(deltaTime);
         trainingDroid.update(deltaTime);
 
         checkPlayerAttack();
@@ -323,8 +367,36 @@ public class GameScreen implements Screen {
 
         if (!player.isAlive()) {
             player.respawn(
-                    PLAYER_RESPAWN_X,
-                    PLAYER_RESPAWN_Y
+                    activeRespawnX,
+                    activeRespawnY
+            );
+        }
+    }
+    
+    private void updateCheckpointAndFalling(
+            float deltaTime) {
+
+        checkpointMessageTimer =
+                Math.max(
+                        0f,
+                        checkpointMessageTimer - deltaTime
+                );
+
+        if (!checkpointActivated
+                && player.getBounds().overlaps(checkpoint)) {
+
+            checkpointActivated = true;
+
+            activeRespawnX = CHECKPOINT_RESPAWN_X;
+            activeRespawnY = CHECKPOINT_RESPAWN_Y;
+
+            checkpointMessageTimer = 2f;
+        }
+
+        if (player.getBounds().y < FALL_RESPAWN_LIMIT) {
+            player.respawn(
+                    activeRespawnX,
+                    activeRespawnY
             );
         }
     }
@@ -425,6 +497,12 @@ public class GameScreen implements Screen {
                 PLAYER_RESPAWN_X,
                 PLAYER_RESPAWN_Y
         );
+        
+        activeRespawnX = PLAYER_RESPAWN_X;
+        activeRespawnY = PLAYER_RESPAWN_Y;
+
+        checkpointActivated = false;
+        checkpointMessageTimer = 0f;
 
         trainingDroid.reset(
                 DROID_START_X,
@@ -495,6 +573,20 @@ public class GameScreen implements Screen {
         shapeRenderer.end();
     }
     
+    private void drawCheckpointMessage() {
+        spriteBatch.begin();
+
+        drawCenteredText(
+                "CHECKPOINT REACHED",
+                camera.position.x,
+                VIEW_HEIGHT - 90f,
+                1.4f,
+                Color.CYAN
+        );
+
+        spriteBatch.end();
+    }
+    
     private void drawTrainingTerminal() {
         shapeRenderer.setColor(
                 0.28f,
@@ -502,6 +594,7 @@ public class GameScreen implements Screen {
                 0.38f,
                 1f
         );
+        
 
         shapeRenderer.rect(
                 trainingTerminal.x,
@@ -607,9 +700,57 @@ public class GameScreen implements Screen {
         );
 
         drawTrainingTerminal();
+        drawCheckpoint();
         trainingDroid.render(shapeRenderer);
 
         shapeRenderer.end();
+    }
+    
+    private void drawCheckpoint() {
+        // Checkpoint stand.
+        shapeRenderer.setColor(
+                0.30f,
+                0.34f,
+                0.40f,
+                1f
+        );
+
+        shapeRenderer.rect(
+                checkpoint.x + 16f,
+                checkpoint.y,
+                8f,
+                checkpoint.height - 20f
+        );
+
+        // Checkpoint base.
+        shapeRenderer.rect(
+                checkpoint.x + 5f,
+                checkpoint.y,
+                checkpoint.width - 10f,
+                12f
+        );
+
+        if (checkpointActivated) {
+            shapeRenderer.setColor(
+                    0.20f,
+                    1f,
+                    0.40f,
+                    1f
+            );
+        } else {
+            shapeRenderer.setColor(
+                    0.20f,
+                    0.70f,
+                    1f,
+                    1f
+            );
+        }
+
+        shapeRenderer.circle(
+                checkpoint.x + checkpoint.width / 2f,
+                checkpoint.y + checkpoint.height - 12f,
+                12f
+        );
     }
 
     private void drawPlayer() {
