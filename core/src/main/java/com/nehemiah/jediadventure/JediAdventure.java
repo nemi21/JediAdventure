@@ -6,6 +6,7 @@ import com.nehemiah.jediadventure.screens.GameScreen;
 import com.nehemiah.jediadventure.screens.MainMenuScreen;
 import com.nehemiah.jediadventure.state.GameState;
 import com.nehemiah.jediadventure.screens.TrainingDebriefScreen;
+import com.nehemiah.jediadventure.screens.OpeningBriefingScreen;
 
 public class JediAdventure extends Game {
 
@@ -37,6 +38,15 @@ public class JediAdventure extends Game {
     public void showTrainingDebrief() {
         changeScreen(
                 new TrainingDebriefScreen(
+                        this,
+                        gameState
+                )
+        );
+    }
+    
+    public void showOpeningBriefing() {
+        changeScreen(
+                new OpeningBriefingScreen(
                         this,
                         gameState
                 )

@@ -64,12 +64,15 @@ public class TrainingDebriefScreen implements Screen {
 
     @Override
     public void render(float deltaTime) {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)
-                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+    	if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+    	    game.showOpeningBriefing();
+    	    return;
+    	}
 
-            game.showMainMenu();
-            return;
-        }
+    	if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+    	    game.showMainMenu();
+    	    return;
+    	}
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
             game.replayTraining();
@@ -249,7 +252,7 @@ public class TrainingDebriefScreen implements Screen {
         );
 
         drawCenteredText(
-                "Press Enter or Escape to return to the main menu",
+        		"Press Enter to continue or Escape for the main menu",
                 VIEW_WIDTH / 2f,
                 150f,
                 1f,
